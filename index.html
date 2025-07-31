@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dos and Don'ts Test</title>
+    <title>Support Guidelines Quiz</title>
     <style>
         * {
             margin: 0;
@@ -144,6 +144,32 @@
             border: 2px solid #f44336;
         }
 
+        .response-section {
+            margin-top: 15px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-left: 4px solid #6c757d;
+            border-radius: 0 8px 8px 0;
+            text-align: left;
+        }
+
+        .response-title {
+            font-size: 0.9em;
+            font-weight: bold;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .response-text {
+            font-size: 0.85em;
+            color: #888888;
+            line-height: 1.5;
+            font-weight: normal;
+            font-style: italic;
+            text-align: left;
+        }
+
         .status-light {
             width: 40px;
             height: 40px;
@@ -234,7 +260,7 @@
 <body>
     <div class="quiz-container">
         <div class="quiz-header">
-            <h1 class="quiz-title">Dos and Don'ts Test</h1>
+            <h1 class="quiz-title">Support Guidelines Quiz</h1>
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill"></div>
             </div>
@@ -258,7 +284,7 @@
             <h2>Quiz Complete!</h2>
             <div class="score-display" id="scoreDisplay">0/25</div>
             <p id="scoreMessage">Great job!</p>
-            <button class="restart-btn" onclick="restartQuiz()">Take Test Again</button>
+            <button class="restart-btn" onclick="restartQuiz()">Take Quiz Again</button>
         </div>
     </div>
 
@@ -395,6 +421,9 @@
         let score = 0;
         let shuffledQuestions = [];
         let userAnswered = false;
+        let showingExceptionQuestion = false;
+        let firstAnswerCorrect = false;
+        let maxPossibleScore = 0;
 
         function shuffleArray(array) {
             const shuffled = [...array];
@@ -410,6 +439,15 @@
             currentQuestionIndex = 0;
             score = 0;
             userAnswered = false;
+            showingExceptionQuestion = false;
+            firstAnswerCorrect = false;
+            
+            // Calculate max possible score (2 points for questions with exceptions, 1 for those without)
+            maxPossibleScore = 0;
+            shuffledQuestions.forEach(q => {
+                maxPossibleScore += q.hasExceptions ? 2 : 1;
+            });
+            
             document.getElementById('quizContent').style.display = 'block';
             document.getElementById('results').classList.remove('show');
             showQuestion();
@@ -417,8 +455,13 @@
 
         function showQuestion() {
             const question = shuffledQuestions[currentQuestionIndex];
-            document.getElementById('questionText').textContent = question.question;
-            document.getElementById('questionCounter').textContent = `Question ${currentQuestionIndex + 1} of ${shuffledQuestions.length}`;
+            
+            if (!showingExceptionQuestion) {
+                document.getElementById('questionText').textContent = question.question;
+                document.getElementById('questionCounter').textContent = `Question ${currentQuestionIndex + 1} of ${shuffledQuestions.length}`;
+            } else {
+                document.getElementById('questionText').textContent = "Are there exceptions?";
+            }
             
             const progress = ((currentQuestionIndex) / shuffledQuestions.length) * 100;
             document.getElementById('progressFill').style.width = progress + '%';
@@ -443,7 +486,6 @@
             
             userAnswered = true;
             const question = shuffledQuestions[currentQuestionIndex];
-            const isCorrect = userAnswer === question.answer;
             
             const answerButtons = document.querySelectorAll('.answer-btn');
             answerButtons.forEach(btn => {
@@ -451,30 +493,82 @@
                 btn.style.opacity = '0.6';
             });
             
+            if (!showingExceptionQuestion) {
+                // First question (main answer)
+                const isCorrect = userAnswer === question.answer;
+                firstAnswerCorrect = isCorrect;
+                
+                if (question.hasExceptions) {
+                    // Show exception question
+                    showingExceptionQuestion = true;
+                    setTimeout(() => {
+                        showQuestion();
+                    }, 1000);
+                    return;
+                } else {
+                    // No exceptions, show final result
+                    if (isCorrect) {
+                        score += 1;
+                    }
+                    showFeedback(isCorrect, question, 1);
+                }
+            } else {
+                // Exception question
+                const exceptionAnswerCorrect = userAnswer === question.hasExceptions;
+                let pointsEarned = 0;
+                
+                if (firstAnswerCorrect && exceptionAnswerCorrect) {
+                    pointsEarned = 2;
+                } else if (firstAnswerCorrect || exceptionAnswerCorrect) {
+                    pointsEarned = 1;
+                } else {
+                    pointsEarned = 0;
+                }
+                
+                score += pointsEarned;
+                showFeedback(pointsEarned > 0, question, pointsEarned);
+                showingExceptionQuestion = false;
+            }
+        }
+        
+        function showFeedback(isCorrect, question, pointsEarned) {
             const feedback = document.getElementById('feedback');
             const statusLight = document.getElementById('statusLight');
             const feedbackText = document.getElementById('feedbackText');
             const nextBtn = document.getElementById('nextBtn');
             
             if (isCorrect) {
-                score++;
                 feedback.classList.add('correct');
                 statusLight.classList.add('green');
-                let feedbackHtml = '<strong>Correct!</strong><br>The answer is: ' + (question.answer ? 'Yes' : 'No');
-                if (question.explanation) {
-                    feedbackHtml += '<br><small style="font-size: 0.9em; margin-top: 10px; display: block; line-height: 1.4;">' + question.explanation + '</small>';
-                }
-                feedbackText.innerHTML = feedbackHtml;
             } else {
                 feedback.classList.add('incorrect');
                 statusLight.classList.add('red');
-                let feedbackHtml = '<strong>Incorrect!</strong><br>The correct answer is: ' + (question.answer ? 'Yes' : 'No');
-                if (question.explanation) {
-                    feedbackHtml += '<br><small style="font-size: 0.9em; margin-top: 10px; display: block; line-height: 1.4;">' + question.explanation + '</small>';
-                }
-                feedbackText.innerHTML = feedbackHtml;
             }
             
+            let feedbackHtml = '';
+            if (question.hasExceptions) {
+                if (pointsEarned === 2) {
+                    feedbackHtml = '<strong>Perfect!</strong><br>You got both answers correct! (+2 points)';
+                } else if (pointsEarned === 1) {
+                    feedbackHtml = '<strong>Partial Credit!</strong><br>You got one answer correct! (+1 point)';
+                } else {
+                    feedbackHtml = '<strong>Incorrect!</strong><br>Both answers were wrong (0 points)';
+                }
+                feedbackHtml += '<br>Main answer: ' + (question.answer ? 'Yes' : 'No') + ' | Exceptions: ' + (question.hasExceptions ? 'Yes' : 'No');
+            } else {
+                feedbackHtml = '<strong>' + (isCorrect ? 'Correct!' : 'Incorrect!') + '</strong><br>The answer is: ' + (question.answer ? 'Yes' : 'No');
+                if (isCorrect) {
+                    feedbackHtml += ' (+1 point)';
+                } else {
+                    feedbackHtml += ' (0 points)';
+                }
+            }
+            
+            if (question.explanation) {
+                feedbackHtml += '<div class="response-section"><div class="response-title">What we respond:</div><div class="response-text">' + question.explanation + '</div></div>';
+            }
+            
+            feedbackText.innerHTML = feedbackHtml;
             feedback.classList.add('show');
             
             if (currentQuestionIndex < shuffledQuestions.length - 1) {
@@ -503,9 +597,9 @@
             
             document.getElementById('progressFill').style.width = '100%';
             
-            document.getElementById('scoreDisplay').textContent = score + '/' + shuffledQuestions.length;
+            document.getElementById('scoreDisplay').textContent = score + '/' + maxPossibleScore;
             
-            const percentage = (score / shuffledQuestions.length) * 100;
+            const percentage = (score / maxPossibleScore) * 100;
             let message = '';
             
             if (percentage >= 90) {
